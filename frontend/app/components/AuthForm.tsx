@@ -64,8 +64,8 @@ export default function AuthForm() {
   };
 
   return (
-    <div className="mx-auto mt-10 w-full max-w-md rounded-xl border border-gray-300 p-6">
-      <h2 className="text-2xl font-bold">
+    <div className="mx-auto mt-10 w-full max-w-md rounded-xl border border-gray-300 bg-white p-6 text-gray-900">
+      <h2 className="text-2xl font-bold text-gray-900">
         {isLogin ? "Login to StudentSkillHub" : "Create an Account"}
       </h2>
 
@@ -77,7 +77,7 @@ export default function AuthForm() {
 
       <form onSubmit={handleSubmit} className="mt-6 space-y-4">
         <div>
-          <label className="mb-1 block text-sm font-medium">
+          <label className="mb-1 block text-sm font-medium text-gray-800">
             Email
           </label>
 
@@ -86,12 +86,12 @@ export default function AuthForm() {
             value={email}
             onChange={(event) => setEmail(event.target.value)}
             placeholder="Enter your email"
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:border-black"
+            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 placeholder-gray-400 outline-none focus:border-black"
           />
         </div>
 
         <div>
-          <label className="mb-1 block text-sm font-medium">
+          <label className="mb-1 block text-sm font-medium text-gray-800">
             Password
           </label>
 
@@ -100,7 +100,7 @@ export default function AuthForm() {
             value={password}
             onChange={(event) => setPassword(event.target.value)}
             placeholder="Enter your password"
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:border-black"
+            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 placeholder-gray-400 outline-none focus:border-black"
           />
         </div>
 
@@ -123,7 +123,7 @@ export default function AuthForm() {
         </button>
       </form>
 
-      <div className="mt-5 text-center text-sm">
+      <div className="mt-5 text-center text-sm text-gray-900">
         <span className="text-gray-600">
           {isLogin
             ? "Don't have an account? "
@@ -136,7 +136,7 @@ export default function AuthForm() {
             setIsLogin(!isLogin);
             setError("");
           }}
-          className="font-medium underline"
+          className="font-medium text-gray-900 underline"
         >
           {isLogin ? "Create Account" : "Login"}
         </button>
