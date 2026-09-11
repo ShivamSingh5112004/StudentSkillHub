@@ -1,6 +1,9 @@
 import { auth } from "./firebase";
 
-const API_BASE_URL = "http://localhost:5000/api";
+// Live Render backend
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_BASE_URL ||
+  "http://localhost:5000/api";
 
 // Get Firebase ID token of the currently logged-in user
 async function getAuthToken() {
