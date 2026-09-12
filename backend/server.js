@@ -1,8 +1,10 @@
+require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const swaggerUi = require("swagger-ui-express");
 
 const studentRoutes = require("./routes/studentRoutes");
+const aiRoutes = require("./routes/aiRoutes");
 const swaggerSpec = require("./docs/swagger");
 
 const app = express();
@@ -29,6 +31,9 @@ app.use(
 
 // Student APIs
 app.use("/api/students", studentRoutes);
+
+// AI Mentor APIs
+app.use("/api/ai", aiRoutes);
 
 // Health check
 app.get("/health", (req, res) => {

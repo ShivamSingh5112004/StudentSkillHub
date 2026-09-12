@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import ReactMarkdown from "react-markdown";
 import { onAuthStateChanged, User } from "firebase/auth";
 
 import {
@@ -8,6 +9,7 @@ import {
   addStudentSkill,
   completeModule,
   createStudent,
+  askAIMentor,
 } from "./lib/api";
 
 import { auth } from "./lib/firebase";
@@ -45,6 +47,20 @@ export default function Home() {
   ];
 
   const [showModules, setShowModules] = useState(false);
+
+  // AI Mentor states
+  const [showAIMentor, setShowAIMentor] = useState(false);
+  const [aiQuestion, setAiQuestion] = useState("");
+  const [aiResponse, setAiResponse] = useState("");
+  const [isAskingAI, setIsAskingAI] = useState(false);
+
+  // AI Mentor conversation history
+  const [aiChat, setAiChat] = useState<
+    {
+      role: "user" | "assistant";
+      content: string;
+    }[]
+  >([]);
 
   // Learning progress calculation
   const completedCount = student?.completedModules?.length ?? 0;
@@ -198,11 +214,66 @@ export default function Home() {
     }
   };
 
+  // Ask AI Mentor
+  const handleAskAIMentor = async () => {
+    if (!aiQuestion.trim()) {
+      alert("Please enter a question for your AI Mentor");
+      return;
+    }
+
+    const question = aiQuestion.trim();
+
+    try {
+      setIsAskingAI(true);
+      setAiResponse("");
+
+      // Send the current question together with the previous conversation.
+      const response = await askAIMentor(
+        question,
+        aiChat
+      );
+
+      const answer =
+        response.message ||
+        response.answer ||
+        response.response ||
+        "No response received.";
+
+      // Add the student's question and AI response to the conversation.
+      setAiChat((previousChat) => [
+        ...previousChat,
+        {
+          role: "user",
+          content: question,
+        },
+        {
+          role: "assistant",
+          content: answer,
+        },
+      ]);
+
+      setAiQuestion("");
+      setAiResponse(answer);
+    } catch (error) {
+      console.error("AI Mentor error:", error);
+
+      setAiResponse(
+        "Sorry, I couldn't connect to your AI Mentor right now. Please try again."
+      );
+    } finally {
+      setIsAskingAI(false);
+    }
+  };
+
   // Logout
   const handleLogout = async () => {
     try {
       await logoutUser();
       setStudent(null);
+      setShowAIMentor(false);
+      setAiQuestion("");
+      setAiResponse("");
+      setAiChat([]);
     } catch (error) {
       console.error("Logout error:", error);
       alert("Failed to logout");
@@ -261,6 +332,7 @@ export default function Home() {
           </div>
 
           <div className="flex items-center gap-3">
+
             <span className="hidden text-sm text-gray-500 md:block">
               {user.email}
             </span>
@@ -273,11 +345,15 @@ export default function Home() {
               Logout
             </button>
 
-            <button className="rounded-lg bg-black px-4 py-2 text-sm font-medium text-white">
+            <button
+              type="button"
+              onClick={() => setShowAIMentor(!showAIMentor)}
+              className="rounded-lg bg-black px-4 py-2 text-sm font-medium text-white"
+            >
               AI Mentor
             </button>
-          </div>
 
+          </div>
         </div>
       </header>
 
@@ -536,8 +612,10 @@ export default function Home() {
 
         {/* Student Profile */}
         <div className="mt-8 rounded-xl border bg-white p-6 shadow-sm">
+
           {student ? (
             <>
+
               <div className="mb-6">
                 <h3 className="text-xl font-semibold text-gray-900">
                   Student Profile
@@ -549,10 +627,12 @@ export default function Home() {
               </div>
 
               <div className="grid gap-5 md:grid-cols-2">
+
                 <div className="rounded-lg bg-gray-50 p-4">
                   <p className="text-sm font-medium text-gray-500">
                     Full Name
                   </p>
+
                   <p className="mt-1 font-semibold text-gray-900">
                     {student.name}
                   </p>
@@ -562,6 +642,7 @@ export default function Home() {
                   <p className="text-sm font-medium text-gray-500">
                     Email
                   </p>
+
                   <p className="mt-1 font-semibold text-gray-900">
                     {student.email}
                   </p>
@@ -571,6 +652,7 @@ export default function Home() {
                   <p className="text-sm font-medium text-gray-500">
                     College
                   </p>
+
                   <p className="mt-1 font-semibold text-gray-900">
                     {student.college}
                   </p>
@@ -580,6 +662,7 @@ export default function Home() {
                   <p className="text-sm font-medium text-gray-500">
                     Branch
                   </p>
+
                   <p className="mt-1 font-semibold text-gray-900">
                     {student.branch}
                   </p>
@@ -589,6 +672,7 @@ export default function Home() {
                   <p className="text-sm font-medium text-gray-500">
                     Year
                   </p>
+
                   <p className="mt-1 font-semibold text-gray-900">
                     {student.year}
                   </p>
@@ -598,14 +682,18 @@ export default function Home() {
                   <p className="text-sm font-medium text-gray-500">
                     Skill Level
                   </p>
+
                   <p className="mt-1 font-semibold text-gray-900">
                     {student.skillLevel}
                   </p>
                 </div>
+
               </div>
+
             </>
           ) : (
             <>
+
               <div className="mb-6">
                 <h3 className="text-xl font-semibold text-gray-900">
                   Create Student Profile
@@ -617,6 +705,7 @@ export default function Home() {
               </div>
 
               <div className="grid gap-5 md:grid-cols-2">
+
                 {/* Name */}
                 <div>
                   <label className="mb-2 block text-sm font-medium text-gray-700">
@@ -707,6 +796,7 @@ export default function Home() {
                     <option value="4">
                       4th Year
                     </option>
+
                   </select>
                 </div>
 
@@ -732,8 +822,10 @@ export default function Home() {
                     <option value="Advanced">
                       Advanced
                     </option>
+
                   </select>
                 </div>
+
               </div>
 
               {/* Create Profile Button */}
@@ -745,8 +837,10 @@ export default function Home() {
               >
                 {isCreatingProfile ? "Creating..." : "Create Profile"}
               </button>
+
             </>
           )}
+
         </div>
 
         {/* AI Mentor */}
@@ -761,9 +855,197 @@ export default function Home() {
             completed modules, and learning progress.
           </p>
 
-          <button className="mt-5 rounded-lg bg-white px-5 py-2.5 text-sm font-medium text-black">
-            Ask AI Mentor
+          <button
+            type="button"
+            onClick={() => setShowAIMentor(!showAIMentor)}
+            className="mt-5 rounded-lg bg-white px-5 py-2.5 text-sm font-medium text-black"
+          >
+            {showAIMentor ? "Close AI Mentor" : "Ask AI Mentor"}
           </button>
+
+          {/* AI Mentor Chat */}
+          {showAIMentor && (
+            <div className="mt-6 rounded-xl bg-white p-5 text-gray-900">
+
+              <div>
+                <h4 className="text-lg font-semibold">
+                  AI Mentor Chat
+                </h4>
+
+                <p className="mt-1 text-sm text-gray-500">
+                  Ask a question about your learning, skills, or career path.
+                </p>
+              </div>
+
+              {/* Student Context */}
+              <div className="mt-4 rounded-lg bg-gray-50 p-4">
+                <p className="text-sm font-medium text-gray-700">
+                  Your current learning context
+                </p>
+
+                <p className="mt-2 text-sm text-gray-600">
+                  Skill Level:{" "}
+                  <span className="font-medium text-gray-900">
+                    {student?.skillLevel || "Beginner"}
+                  </span>
+                </p>
+
+                <p className="mt-1 text-sm text-gray-600">
+                  Skills:{" "}
+                  <span className="font-medium text-gray-900">
+                    {student?.skills?.length
+                      ? student.skills.join(", ")
+                      : "No skills added yet"}
+                  </span>
+                </p>
+
+                <p className="mt-1 text-sm text-gray-600">
+                  Learning Progress:{" "}
+                  <span className="font-medium text-gray-900">
+                    {progressPercentage}%
+                  </span>
+                </p>
+              </div>
+
+              {/* Question */}
+              <div className="mt-4">
+
+                <label className="mb-2 block text-sm font-medium text-gray-700">
+                  Your Question
+                </label>
+
+                <textarea
+                  value={aiQuestion}
+                  onChange={(e) => setAiQuestion(e.target.value)}
+                  placeholder="e.g. What should I learn next based on my current skills?"
+                  rows={4}
+                  className="w-full resize-none rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 outline-none focus:border-black focus:ring-1 focus:ring-black"
+                />
+
+              </div>
+
+              {/* Ask Button */}
+              <button
+                type="button"
+                onClick={handleAskAIMentor}
+                disabled={isAskingAI}
+                className="mt-4 rounded-lg bg-black px-5 py-2.5 text-sm font-medium text-white disabled:opacity-50"
+              >
+                {isAskingAI
+                  ? "AI Mentor is thinking..."
+                  : "Ask AI Mentor"}
+              </button>
+
+              {/* AI Conversation */}
+              {aiChat.length > 0 && (
+                <div className="mt-5 max-h-[500px] overflow-y-auto rounded-lg border border-gray-200 bg-gray-50 p-4">
+                  <div className="flex flex-col gap-4">
+                    {aiChat.map((chat, index) => (
+                      <div
+                        key={`${chat.role}-${index}`}
+                        className={
+                          chat.role === "user"
+                            ? "ml-auto max-w-[85%] rounded-xl bg-black px-4 py-3 text-sm leading-6 text-white"
+                            : "mr-auto max-w-[85%] rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm leading-6 text-gray-700"
+                        }
+                      >
+                        <div className="mb-1 text-xs font-semibold opacity-70">
+                          {chat.role === "user" ? "You" : "🤖 AI Mentor"}
+                        </div>
+
+                        {chat.role === "user" ? (
+                          <div className="whitespace-pre-wrap text-white">
+                            {chat.content}
+                          </div>
+                        ) : (
+                          <div className="prose prose-sm max-w-none text-sm leading-6 text-gray-700">
+                            <ReactMarkdown
+                              components={{
+                                h1: ({ children }) => (
+                                  <h1 className="mb-3 mt-4 text-xl font-bold text-gray-900 first:mt-0">
+                                    {children}
+                                  </h1>
+                                ),
+                                h2: ({ children }) => (
+                                  <h2 className="mb-2 mt-4 text-lg font-bold text-gray-900 first:mt-0">
+                                    {children}
+                                  </h2>
+                                ),
+                                h3: ({ children }) => (
+                                  <h3 className="mb-2 mt-4 text-base font-bold text-gray-900 first:mt-0">
+                                    {children}
+                                  </h3>
+                                ),
+                                p: ({ children }) => (
+                                  <p className="mb-3 last:mb-0">
+                                    {children}
+                                  </p>
+                                ),
+                                ul: ({ children }) => (
+                                  <ul className="mb-3 ml-5 list-disc space-y-1">
+                                    {children}
+                                  </ul>
+                                ),
+                                ol: ({ children }) => (
+                                  <ol className="mb-3 ml-5 list-decimal space-y-1">
+                                    {children}
+                                  </ol>
+                                ),
+                                li: ({ children }) => (
+                                  <li className="pl-1">
+                                    {children}
+                                  </li>
+                                ),
+                                strong: ({ children }) => (
+                                  <strong className="font-bold text-gray-900">
+                                    {children}
+                                  </strong>
+                                ),
+                                code: ({ children }) => (
+                                  <code className="rounded bg-gray-100 px-1.5 py-0.5 text-xs font-mono text-gray-900">
+                                    {children}
+                                  </code>
+                                ),
+                              }}
+                            >
+                              {chat.content}
+                            </ReactMarkdown>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* AI Thinking Indicator */}
+              {isAskingAI && (
+                <div className="mt-5 rounded-lg border border-gray-200 bg-gray-50 p-4">
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <span>🤖</span>
+                    <span>AI Mentor is thinking...</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Fallback response */}
+              {aiChat.length === 0 && aiResponse && !isAskingAI && (
+                <div className="mt-5 rounded-lg border border-gray-200 bg-gray-50 p-5">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">🤖</span>
+                    <h4 className="font-semibold text-gray-900">
+                      AI Mentor
+                    </h4>
+                  </div>
+
+                  <div className="mt-3 whitespace-pre-wrap text-sm leading-6 text-gray-700">
+                    {aiResponse}
+                  </div>
+                </div>
+              )}
+
+            </div>
+          )}
 
         </div>
 

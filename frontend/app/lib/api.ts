@@ -105,8 +105,7 @@ export async function completeModule(
       body: JSON.stringify({
         module,
       }),
-    }
-  );
+  });
 
   if (!response.ok) {
     throw new Error("Failed to complete module");
@@ -141,6 +140,38 @@ export async function createStudent(studentData: {
 
   if (!response.ok) {
     throw new Error("Failed to create student");
+  }
+
+  return response.json();
+}
+
+// Ask the AI Mentor
+export async function askAIMentor(
+  message: string,
+  history: {
+    role: "user" | "assistant";
+    content: string;
+  }[] = []
+) {
+  const token = await getAuthToken();
+
+  const response = await fetch(
+    `${API_BASE_URL}/ai/mentor`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        message,
+        history,
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error("Failed to get AI Mentor response");
   }
 
   return response.json();
