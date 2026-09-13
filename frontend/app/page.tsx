@@ -425,11 +425,11 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-50">
+    <main className="min-h-screen overflow-x-hidden bg-gray-50">
 
       {/* Header */}
       <header className="border-b bg-white">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
+        <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
 
           <div>
             <h1 className="text-2xl font-bold text-gray-900">
@@ -441,7 +441,7 @@ export default function Home() {
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:gap-3">
 
             <span className="hidden text-sm text-gray-500 md:block">
               {user.email}
@@ -450,7 +450,7 @@ export default function Home() {
             <button
               type="button"
               onClick={handleLogout}
-              className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 sm:px-4 sm:text-sm"
             >
               Logout
             </button>
@@ -458,7 +458,7 @@ export default function Home() {
             <button
               type="button"
               onClick={() => setShowAIMentor(!showAIMentor)}
-              className="rounded-lg bg-black px-4 py-2 text-sm font-medium text-white"
+              className="rounded-lg bg-black px-3 py-2 text-xs font-medium text-white sm:px-4 sm:text-sm"
             >
               AI Mentor
             </button>
@@ -466,7 +466,7 @@ export default function Home() {
             <button
               type="button"
               onClick={() => setShowLearningAgent(!showLearningAgent)}
-              className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 sm:px-4 sm:text-sm"
             >
               Learning Agent
             </button>
@@ -476,15 +476,15 @@ export default function Home() {
       </header>
 
       {/* Dashboard */}
-      <section className="mx-auto max-w-7xl px-6 py-10">
+      <section className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 sm:py-10">
 
         {/* Welcome */}
         <div className="mb-8">
-          <h2 className="text-3xl font-bold text-gray-900">
+          <h2 className="text-3xl font-bold leading-tight text-gray-900 sm:text-3xl">
             Welcome back, {student?.name || "Student"} 👋
           </h2>
 
-          <p className="mt-2 text-gray-600">
+          <p className="mt-2 max-w-3xl text-base leading-7 text-gray-600 sm:text-lg">
             Track your skills, complete learning modules, and improve with
             AI-powered mentorship.
           </p>
@@ -494,7 +494,7 @@ export default function Home() {
         <div className="grid gap-6 md:grid-cols-3">
 
           {/* Skill Level */}
-          <div className="rounded-xl border bg-white p-6 shadow-sm">
+          <div className="rounded-xl border bg-white p-5 shadow-sm sm:p-6">
             <p className="text-sm font-medium text-gray-500">
               Skill Level
             </p>
@@ -509,7 +509,7 @@ export default function Home() {
           </div>
 
           {/* Skills Tracked */}
-          <div className="rounded-xl border bg-white p-6 shadow-sm">
+          <div className="rounded-xl border bg-white p-5 shadow-sm sm:p-6">
             <p className="text-sm font-medium text-gray-500">
               Skills Tracked
             </p>
@@ -524,7 +524,7 @@ export default function Home() {
           </div>
 
           {/* Modules Completed */}
-          <div className="rounded-xl border bg-white p-6 shadow-sm">
+          <div className="rounded-xl border bg-white p-5 shadow-sm sm:p-6">
             <p className="text-sm font-medium text-gray-500">
               Modules Completed
             </p>
@@ -544,7 +544,7 @@ export default function Home() {
         <div className="mt-8 grid gap-6 md:grid-cols-2">
 
           {/* My Skills */}
-          <div className="rounded-xl border bg-white p-6 shadow-sm">
+          <div className="rounded-xl border bg-white p-5 shadow-sm sm:p-6">
 
             <h3 className="text-xl font-semibold text-gray-900">
               My Skills
@@ -579,20 +579,20 @@ export default function Home() {
               )}
 
               {/* Add Skill */}
-              <div className="mt-4 flex gap-2">
+              <div className="mt-4 flex flex-col gap-2 sm:flex-row">
 
                 <input
                   type="text"
                   placeholder="Enter a skill"
                   value={newSkill}
                   onChange={(e) => setNewSkill(e.target.value)}
-                  className="flex-1 rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-gray-400"
+                  className="min-w-0 flex-1 rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-gray-400"
                 />
 
                 <button
                   onClick={handleAddSkill}
                   disabled={isAddingSkill}
-                  className="rounded-lg bg-black px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+                  className="w-full rounded-lg bg-black px-4 py-2 text-sm font-medium text-white disabled:opacity-50 sm:w-auto"
                 >
                   {isAddingSkill ? "Adding..." : "Add Skill"}
                 </button>
@@ -603,7 +603,7 @@ export default function Home() {
           </div>
 
           {/* Learning Progress */}
-          <div className="rounded-xl border bg-white p-6 shadow-sm">
+          <div className="rounded-xl border bg-white p-5 shadow-sm sm:p-6">
 
             <h3 className="text-xl font-semibold text-gray-900">
               Learning Progress
@@ -689,7 +689,7 @@ export default function Home() {
                     return (
                       <div
                         key={module}
-                        className="flex items-center justify-between rounded-lg border bg-white p-4"
+                        className="flex flex-col items-start gap-3 rounded-lg border bg-white p-4 sm:flex-row sm:items-center sm:justify-between"
                       >
 
                         <span className="text-sm font-medium text-gray-700">
@@ -708,7 +708,7 @@ export default function Home() {
                             disabled={
                               isCompletingModule === module
                             }
-                            className="rounded-lg bg-black px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+                            className="w-full rounded-lg bg-black px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50 sm:w-auto"
                           >
                             {isCompletingModule === module
                               ? "Completing..."
@@ -729,7 +729,7 @@ export default function Home() {
         </div>
 
         {/* Student Profile */}
-        <div className="mt-8 rounded-xl border bg-white p-6 shadow-sm">
+        <div className="mt-8 rounded-xl border bg-white p-5 shadow-sm sm:p-6">
 
           {student ? (
             <>
@@ -962,8 +962,8 @@ export default function Home() {
         </div>
 
         {/* Original AI Mentor */}
-        <div className="mt-8 rounded-xl bg-black p-8 text-white">
-          <h3 className="text-2xl font-bold">
+        <div className="mt-8 rounded-xl bg-black p-5 text-white sm:p-8">
+          <h3 className="text-2xl font-bold leading-tight sm:text-2xl">
             Meet Your AI Mentor 🤖
           </h3>
 
@@ -972,7 +972,7 @@ export default function Home() {
             career direction, and general questions.
           </p>
 
-          <div className="mt-4 inline-flex items-center rounded-lg border border-gray-700 bg-gray-900 px-4 py-2 text-sm text-gray-300">
+          <div className="mt-4 flex w-full flex-wrap items-center gap-x-1 gap-y-1 rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-gray-300 sm:w-fit sm:px-4">
             🤖 AI Mentor:{" "}
             <span className="ml-1 font-semibold text-white">
               {mentorUsage?.remaining ?? 10}/{mentorUsage?.limit ?? 10}
@@ -983,7 +983,7 @@ export default function Home() {
           <button
             type="button"
             onClick={() => setShowAIMentor(!showAIMentor)}
-            className="mt-5 rounded-lg bg-white px-5 py-2.5 text-sm font-medium text-black"
+            className="mt-5 w-full rounded-lg bg-white px-5 py-2.5 text-sm font-medium text-black sm:w-auto"
           >
             {showAIMentor ? "Close AI Mentor" : "Ask AI Mentor"}
           </button>
@@ -1074,8 +1074,8 @@ export default function Home() {
                         key={`mentor-${chat.role}-${index}`}
                         className={
                           chat.role === "user"
-                            ? "ml-auto max-w-[85%] rounded-xl bg-black px-4 py-3 text-sm leading-6 text-white"
-                            : "mr-auto max-w-[85%] rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm leading-6 text-gray-700"
+                            ? "ml-auto max-w-[85%] break-words rounded-xl bg-black px-4 py-3 text-sm leading-6 text-white"
+                            : "mr-auto max-w-[85%] break-words rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm leading-6 text-gray-700"
                         }
                       >
                         <div className="mb-1 text-xs font-semibold opacity-70">
@@ -1127,8 +1127,8 @@ export default function Home() {
         </div>
 
         {/* Learning Progress Agent */}
-        <div className="mt-8 rounded-xl bg-gray-900 p-8 text-white">
-          <h3 className="text-2xl font-bold">
+        <div className="mt-8 rounded-xl bg-gray-900 p-5 text-white sm:p-8">
+          <h3 className="text-2xl font-bold leading-tight sm:text-2xl">
             Learning Progress Agent 🎯
           </h3>
 
@@ -1138,7 +1138,7 @@ export default function Home() {
             step, and can update your progress when you explicitly ask.
           </p>
 
-          <div className="mt-4 inline-flex items-center rounded-lg border border-gray-700 bg-gray-800 px-4 py-2 text-sm text-gray-300">
+          <div className="mt-4 flex w-full flex-wrap items-center gap-x-1 gap-y-1 rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-gray-300 sm:w-fit sm:px-4">
             🎯 Learning Agent:{" "}
             <span className="ml-1 font-semibold text-white">
               {agentUsage?.remaining ?? 10}/{agentUsage?.limit ?? 10}
@@ -1149,7 +1149,7 @@ export default function Home() {
           <button
             type="button"
             onClick={() => setShowLearningAgent(!showLearningAgent)}
-            className="mt-5 rounded-lg bg-white px-5 py-2.5 text-sm font-medium text-black"
+            className="mt-5 w-full rounded-lg bg-white px-5 py-2.5 text-sm font-medium text-black sm:w-auto"
           >
             {showLearningAgent
               ? "Close Learning Agent"
@@ -1235,8 +1235,8 @@ export default function Home() {
                         key={`agent-${chat.role}-${index}`}
                         className={
                           chat.role === "user"
-                            ? "ml-auto max-w-[85%] rounded-xl bg-black px-4 py-3 text-sm leading-6 text-white"
-                            : "mr-auto max-w-[85%] rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm leading-6 text-gray-700"
+                            ? "ml-auto max-w-[85%] break-words rounded-xl bg-black px-4 py-3 text-sm leading-6 text-white"
+                            : "mr-auto max-w-[85%] break-words rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm leading-6 text-gray-700"
                         }
                       >
                         <div className="mb-1 text-xs font-semibold opacity-70">
