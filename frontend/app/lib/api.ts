@@ -105,7 +105,8 @@ export async function completeModule(
       body: JSON.stringify({
         module,
       }),
-  });
+    }
+  );
 
   if (!response.ok) {
     throw new Error("Failed to complete module");
@@ -145,7 +146,7 @@ export async function createStudent(studentData: {
   return response.json();
 }
 
-// Ask the AI Mentor
+// Ask the existing AI Mentor
 export async function askAIMentor(
   message: string,
   history: {
@@ -172,6 +173,33 @@ export async function askAIMentor(
 
   if (!response.ok) {
     throw new Error("Failed to get AI Mentor response");
+  }
+
+  return response.json();
+}
+
+// Ask the new Genkit AI Agent
+export async function askGenkitAgent(
+  message: string
+) {
+  const token = await getAuthToken();
+
+  const response = await fetch(
+    `${API_BASE_URL}/ai/agent`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        message,
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error("Failed to get Genkit AI Agent response");
   }
 
   return response.json();

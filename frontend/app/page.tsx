@@ -9,7 +9,7 @@ import {
   addStudentSkill,
   completeModule,
   createStudent,
-  askAIMentor,
+  askGenkitAgent,
 } from "./lib/api";
 
 import { auth } from "./lib/firebase";
@@ -41,6 +41,7 @@ export default function Home() {
   const learningModules = [
     "HTML & CSS Basics",
     "JavaScript Basics",
+    "Intermediate JavaScript",
     "React Basics",
     "Node.js Basics",
     "Git & GitHub",
@@ -228,10 +229,7 @@ export default function Home() {
       setAiResponse("");
 
       // Send the current question together with the previous conversation.
-      const response = await askAIMentor(
-        question,
-        aiChat
-      );
+      const response = await askGenkitAgent(question);
 
       const answer =
         response.message ||
