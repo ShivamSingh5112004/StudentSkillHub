@@ -271,7 +271,176 @@ export const getLearningRoadmap = ai.defineTool(
 
 
 // ============================================================
-// TOOL 3: RECORD MODULE COMPLETION
+// TOOL 3: GET NEXT RECOMMENDED LEARNING MODULE
+// ============================================================
+
+export const getNextRecommendedModule = ai.defineTool(
+  {
+    name: "getNextRecommendedModule",
+
+    description:
+      "Analyzes the authenticated StudentSkillHub student's completed modules against the official learning roadmap and returns the next module whose prerequisites are satisfied.",
+
+    inputSchema: z.object({
+      firebaseUid: z
+        .string()
+        .optional()
+        .describe(
+          "Firebase UID of the StudentSkillHub student. During local development, if omitted, the configured development UID is used."
+        ),
+    }),
+
+    outputSchema: z.object({
+      status: z.string(),
+
+      nextModule: z
+        .object({
+          module: z.string(),
+          level: z.string(),
+          description: z.string(),
+          prerequisites: z.array(z.string()),
+        })
+        .optional(),
+
+      completedModules: z.array(z.string()),
+
+      message: z.string(),
+    }),
+  },
+
+  async ({ firebaseUid }) => {
+    try {
+      const uid = firebaseUid || testFirebaseUid;
+
+      if (!uid) {
+        return {
+          status: "error",
+          completedModules: [],
+          message:
+            "No Firebase UID was provided and no development Firebase UID is configured.",
+        };
+      }
+
+      const snapshot = await db
+        .collection("students")
+        .where("firebaseUid", "==", uid)
+        .limit(1)
+        .get();
+
+      if (snapshot.empty) {
+        return {
+          status: "not_found",
+          completedModules: [],
+          message:
+            "No StudentSkillHub profile was found for the provided Firebase UID.",
+        };
+      }
+
+      const student = snapshot.docs[0].data();
+
+      const completedModules = Array.isArray(student.completedModules)
+        ? student.completedModules
+        : [];
+
+      const roadmap = [
+        {
+          module: "JavaScript Basics",
+          level: "Beginner",
+          description:
+            "Variables, data types, operators, conditions, loops, functions, arrays, and basic JavaScript programming.",
+          prerequisites: [],
+        },
+        {
+          module: "Intermediate JavaScript",
+          level: "Beginner to Intermediate",
+          description:
+            "ES6+, destructuring, spread/rest operators, modules, promises, async/await, error handling, and modern JavaScript patterns.",
+          prerequisites: ["JavaScript Basics"],
+        },
+        {
+          module: "React Fundamentals",
+          level: "Intermediate",
+          description:
+            "Components, props, state, hooks, event handling, conditional rendering, and reusable UI development.",
+          prerequisites: ["Intermediate JavaScript"],
+        },
+        {
+          module: "Node.js & Express",
+          level: "Intermediate",
+          description:
+            "Backend development with Node.js, Express, REST APIs, middleware, routing, and server-side JavaScript.",
+          prerequisites: ["Intermediate JavaScript"],
+        },
+        {
+          module: "Database & Firestore",
+          level: "Intermediate",
+          description:
+            "Database concepts, Firebase, Firestore collections, documents, queries, and CRUD operations.",
+          prerequisites: ["Node.js & Express"],
+        },
+        {
+          module: "Full-Stack Development",
+          level: "Advanced",
+          description:
+            "Build complete applications by integrating frontend, backend, APIs, authentication, and databases.",
+          prerequisites: [
+            "React Fundamentals",
+            "Node.js & Express",
+            "Database & Firestore",
+          ],
+        },
+        {
+          module: "AI & Generative AI",
+          level: "Advanced",
+          description:
+            "LLMs, Gemini, prompt engineering, AI application development, Genkit, ADK, and AI-powered features.",
+          prerequisites: ["Intermediate JavaScript", "Node.js & Express"],
+        },
+      ];
+
+      const nextModule = roadmap.find(
+        (item) =>
+          !completedModules.includes(item.module) &&
+          item.prerequisites.every((prerequisite) =>
+            completedModules.includes(prerequisite)
+          )
+      );
+
+      if (!nextModule) {
+        return {
+          status: "complete",
+          completedModules,
+          message:
+            "No additional roadmap module is currently available. The student has either completed the roadmap or still has a prerequisite dependency to satisfy.",
+        };
+      }
+
+      return {
+        status: "success",
+        nextModule,
+        completedModules,
+        message:
+          `The next recommended module is "${nextModule.module}" because all of its prerequisites are satisfied.`,
+      };
+    } catch (error) {
+      console.error(
+        "Genkit next learning module error:",
+        error
+      );
+
+      return {
+        status: "error",
+        completedModules: [],
+        message:
+          "Failed to determine the student's next recommended learning module.",
+      };
+    }
+  }
+);
+
+
+// ============================================================
+// TOOL 4: RECORD MODULE COMPLETION
 // ============================================================
 
 export const recordModuleCompletion = ai.defineTool(
@@ -445,15 +614,21 @@ export const studentMentorFlow = ai.defineFlow(
       tools: [
         getStudentLearningStatus,
         getLearningRoadmap,
+        getNextRecommendedModule,
         recordModuleCompletion,
       ],
 
       prompt: `
-You are the StudentSkillHub AI Mentor.
+You are the StudentSkillHub Learning Progress Agent.
 
-You help students understand their learning progress,
-decide what they should learn next, and update their
-learning progress when explicitly requested.
+Your primary responsibility is to analyze the authenticated
+student's real learning progress, determine the next logical
+learning step from the StudentSkillHub roadmap, and update
+Firestore only when the student explicitly requests an action.
+
+You are not a generic chatbot. Your recommendations must be
+grounded in the student's actual Firestore progress and the
+StudentSkillHub roadmap.
 
 ============================================================
 CURRENT STUDENT IDENTITY
@@ -489,7 +664,12 @@ Retrieves the student's real profile from Firestore.
 Retrieves the available StudentSkillHub learning modules
 and their recommended progression.
 
-3. recordModuleCompletion
+3. getNextRecommendedModule
+
+Analyzes the student's completed modules and returns the next
+roadmap module whose prerequisites are satisfied.
+
+4. recordModuleCompletion
 
 Records a completed learning module in Firestore.
 
@@ -505,22 +685,29 @@ When the student asks about:
 - their current level
 - what they should learn next
 - their learning journey
+- which module they should study now
 
 do the following:
 
 1. Use getStudentLearningStatus first.
 
-2. Use getLearningRoadmap.
+2. Use getLearningRoadmap when roadmap details are needed.
 
-3. Compare the student's actual profile with the roadmap.
+3. Use getNextRecommendedModule when the student asks for
+   the next module, next step, or a progress-based recommendation.
 
-4. Identify the most logical next learning step.
+4. Treat the tool result as the authoritative calculation of
+   prerequisite eligibility. Do not invent a different next
+   module when the tool identifies an eligible one.
 
-5. Check prerequisites.
+5. Explain which completed modules support the recommendation.
 
-6. Explain why the recommendation is appropriate.
+6. Mention any important prerequisite dependency when useful.
 
-7. Give practical next actions.
+7. Give practical next actions for the recommended module.
+
+8. If the student has no profile, do not invent progress.
+   Explain that the profile is required.
 
 ============================================================
 MODULE COMPLETION REQUESTS

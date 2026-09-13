@@ -9,7 +9,9 @@ import {
   addStudentSkill,
   completeModule,
   createStudent,
+  askAIMentor,
   askGenkitAgent,
+  getAIUsage,
 } from "./lib/api";
 
 import { auth } from "./lib/firebase";
@@ -38,25 +40,55 @@ export default function Home() {
   // Create Profile loading state
   const [isCreatingProfile, setIsCreatingProfile] = useState(false);
 
+  // StudentSkillHub roadmap
+  // Keep this catalog synchronized with the Learning Progress Agent.
   const learningModules = [
-    "HTML & CSS Basics",
     "JavaScript Basics",
     "Intermediate JavaScript",
-    "React Basics",
-    "Node.js Basics",
-    "Git & GitHub",
+    "React Fundamentals",
+    "Node.js & Express",
+    "Database & Firestore",
+    "Full-Stack Development",
+    "AI & Generative AI",
   ];
 
   const [showModules, setShowModules] = useState(false);
 
-  // AI Mentor states
+  // Original AI Mentor states
   const [showAIMentor, setShowAIMentor] = useState(false);
-  const [aiQuestion, setAiQuestion] = useState("");
-  const [aiResponse, setAiResponse] = useState("");
-  const [isAskingAI, setIsAskingAI] = useState(false);
+  const [mentorQuestion, setMentorQuestion] = useState("");
+  const [mentorResponse, setMentorResponse] = useState("");
+  const [isAskingMentor, setIsAskingMentor] = useState(false);
 
-  // AI Mentor conversation history
+  // Original AI Mentor conversation history
   const [aiChat, setAiChat] = useState<
+    {
+      role: "user" | "assistant";
+      content: string;
+    }[]
+  >([]);
+
+  // Learning Progress Agent states
+  const [showLearningAgent, setShowLearningAgent] = useState(false);
+  const [agentQuestion, setAgentQuestion] = useState("");
+  const [agentResponse, setAgentResponse] = useState("");
+  const [isAskingAgent, setIsAskingAgent] = useState(false);
+
+  // Daily AI usage states
+  const [mentorUsage, setMentorUsage] = useState<{
+    used: number;
+    limit: number;
+    remaining: number;
+  } | null>(null);
+
+  const [agentUsage, setAgentUsage] = useState<{
+    used: number;
+    limit: number;
+    remaining: number;
+  } | null>(null);
+
+  // Learning Progress Agent conversation history
+  const [agentChat, setAgentChat] = useState<
     {
       role: "user" | "assistant";
       content: string;
@@ -101,6 +133,26 @@ export default function Home() {
       .catch((error) => {
         console.error("Student profile API Error:", error);
         setStudent(null);
+      });
+  }, [user]);
+
+  // Fetch today's AI usage for the authenticated student
+  useEffect(() => {
+    if (!user) {
+      setMentorUsage(null);
+      setAgentUsage(null);
+      return;
+    }
+
+    getAIUsage()
+      .then((data) => {
+        if (data?.success && data?.usage) {
+          setMentorUsage(data.usage.mentor);
+          setAgentUsage(data.usage.agent);
+        }
+      })
+      .catch((error) => {
+        console.error("AI usage fetch error:", error);
       });
   }, [user]);
 
@@ -215,21 +267,20 @@ export default function Home() {
     }
   };
 
-  // Ask AI Mentor
+  // Ask the original AI Mentor
   const handleAskAIMentor = async () => {
-    if (!aiQuestion.trim()) {
+    if (!mentorQuestion.trim()) {
       alert("Please enter a question for your AI Mentor");
       return;
     }
 
-    const question = aiQuestion.trim();
+    const question = mentorQuestion.trim();
 
     try {
-      setIsAskingAI(true);
-      setAiResponse("");
+      setIsAskingMentor(true);
+      setMentorResponse("");
 
-      // Send the current question together with the previous conversation.
-      const response = await askGenkitAgent(question);
+      const response = await askAIMentor(question, aiChat);
 
       const answer =
         response.message ||
@@ -237,7 +288,10 @@ export default function Home() {
         response.response ||
         "No response received.";
 
-      // Add the student's question and AI response to the conversation.
+      if (response?.usage) {
+        setMentorUsage(response.usage);
+      }
+
       setAiChat((previousChat) => [
         ...previousChat,
         {
@@ -250,16 +304,66 @@ export default function Home() {
         },
       ]);
 
-      setAiQuestion("");
-      setAiResponse(answer);
+      setMentorQuestion("");
+      setMentorResponse(answer);
     } catch (error) {
       console.error("AI Mentor error:", error);
 
-      setAiResponse(
+      setMentorResponse(
         "Sorry, I couldn't connect to your AI Mentor right now. Please try again."
       );
     } finally {
-      setIsAskingAI(false);
+      setIsAskingMentor(false);
+    }
+  };
+
+  // Ask the Learning Progress Agent
+  const handleAskLearningAgent = async () => {
+    if (!agentQuestion.trim()) {
+      alert("Please enter a question for your Learning Progress Agent");
+      return;
+    }
+
+    const question = agentQuestion.trim();
+
+    try {
+      setIsAskingAgent(true);
+      setAgentResponse("");
+
+      const response = await askGenkitAgent(question);
+
+      const answer =
+        response.message ||
+        response.answer ||
+        response.response ||
+        "No response received.";
+
+      if (response?.usage) {
+        setAgentUsage(response.usage);
+      }
+
+      setAgentChat((previousChat) => [
+        ...previousChat,
+        {
+          role: "user",
+          content: question,
+        },
+        {
+          role: "assistant",
+          content: answer,
+        },
+      ]);
+
+      setAgentQuestion("");
+      setAgentResponse(answer);
+    } catch (error) {
+      console.error("Learning Progress Agent error:", error);
+
+      setAgentResponse(
+        "Sorry, I couldn't connect to your Learning Progress Agent right now. Please try again."
+      );
+    } finally {
+      setIsAskingAgent(false);
     }
   };
 
@@ -269,9 +373,17 @@ export default function Home() {
       await logoutUser();
       setStudent(null);
       setShowAIMentor(false);
-      setAiQuestion("");
-      setAiResponse("");
+      setMentorQuestion("");
+      setMentorResponse("");
       setAiChat([]);
+
+      setShowLearningAgent(false);
+      setAgentQuestion("");
+      setAgentResponse("");
+      setAgentChat([]);
+
+      setMentorUsage(null);
+      setAgentUsage(null);
     } catch (error) {
       console.error("Logout error:", error);
       alert("Failed to logout");
@@ -349,6 +461,14 @@ export default function Home() {
               className="rounded-lg bg-black px-4 py-2 text-sm font-medium text-white"
             >
               AI Mentor
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowLearningAgent(!showLearningAgent)}
+              className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              Learning Agent
             </button>
 
           </div>
@@ -841,17 +961,24 @@ export default function Home() {
 
         </div>
 
-        {/* AI Mentor */}
+        {/* Original AI Mentor */}
         <div className="mt-8 rounded-xl bg-black p-8 text-white">
-
           <h3 className="text-2xl font-bold">
             Meet Your AI Mentor 🤖
           </h3>
 
           <p className="mt-2 max-w-2xl text-gray-300">
-            Get personalized guidance based on your current skills,
-            completed modules, and learning progress.
+            Get personalized guidance about learning, skills, projects,
+            career direction, and general questions.
           </p>
+
+          <div className="mt-4 inline-flex items-center rounded-lg border border-gray-700 bg-gray-900 px-4 py-2 text-sm text-gray-300">
+            🤖 AI Mentor:{" "}
+            <span className="ml-1 font-semibold text-white">
+              {mentorUsage?.remaining ?? 10}/{mentorUsage?.limit ?? 10}
+            </span>
+            <span className="ml-1">queries remaining today</span>
+          </div>
 
           <button
             type="button"
@@ -861,21 +988,19 @@ export default function Home() {
             {showAIMentor ? "Close AI Mentor" : "Ask AI Mentor"}
           </button>
 
-          {/* AI Mentor Chat */}
           {showAIMentor && (
             <div className="mt-6 rounded-xl bg-white p-5 text-gray-900">
-
               <div>
                 <h4 className="text-lg font-semibold">
                   AI Mentor Chat
                 </h4>
 
                 <p className="mt-1 text-sm text-gray-500">
-                  Ask a question about your learning, skills, or career path.
+                  Ask general questions about learning, skills, projects,
+                  or your career path.
                 </p>
               </div>
 
-              {/* Student Context */}
               <div className="mt-4 rounded-lg bg-gray-50 p-4">
                 <p className="text-sm font-medium text-gray-700">
                   Your current learning context
@@ -905,42 +1030,48 @@ export default function Home() {
                 </p>
               </div>
 
-              {/* Question */}
               <div className="mt-4">
-
                 <label className="mb-2 block text-sm font-medium text-gray-700">
                   Your Question
                 </label>
 
                 <textarea
-                  value={aiQuestion}
-                  onChange={(e) => setAiQuestion(e.target.value)}
-                  placeholder="e.g. What should I learn next based on my current skills?"
+                  value={mentorQuestion}
+                  onChange={(e) => setMentorQuestion(e.target.value)}
+                  placeholder="e.g. How can I improve my JavaScript skills?"
                   rows={4}
                   className="w-full resize-none rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 outline-none focus:border-black focus:ring-1 focus:ring-black"
                 />
-
               </div>
 
-              {/* Ask Button */}
               <button
                 type="button"
                 onClick={handleAskAIMentor}
-                disabled={isAskingAI}
-                className="mt-4 rounded-lg bg-black px-5 py-2.5 text-sm font-medium text-white disabled:opacity-50"
+                disabled={
+                  isAskingMentor ||
+                  mentorUsage?.remaining === 0
+                }
+                className="mt-4 rounded-lg bg-black px-5 py-2.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {isAskingAI
+                {isAskingMentor
                   ? "AI Mentor is thinking..."
-                  : "Ask AI Mentor"}
+                  : mentorUsage?.remaining === 0
+                    ? "Daily Limit Reached"
+                    : "Ask AI Mentor"}
               </button>
 
-              {/* AI Conversation */}
+              {mentorUsage?.remaining === 0 && (
+                <p className="mt-3 text-sm font-medium text-red-600">
+                  AI Mentor daily limit reached. Please try again tomorrow.
+                </p>
+              )}
+
               {aiChat.length > 0 && (
                 <div className="mt-5 max-h-[500px] overflow-y-auto rounded-lg border border-gray-200 bg-gray-50 p-4">
                   <div className="flex flex-col gap-4">
                     {aiChat.map((chat, index) => (
                       <div
-                        key={`${chat.role}-${index}`}
+                        key={`mentor-${chat.role}-${index}`}
                         className={
                           chat.role === "user"
                             ? "ml-auto max-w-[85%] rounded-xl bg-black px-4 py-3 text-sm leading-6 text-white"
@@ -949,6 +1080,169 @@ export default function Home() {
                       >
                         <div className="mb-1 text-xs font-semibold opacity-70">
                           {chat.role === "user" ? "You" : "🤖 AI Mentor"}
+                        </div>
+
+                        {chat.role === "user" ? (
+                          <div className="whitespace-pre-wrap text-white">
+                            {chat.content}
+                          </div>
+                        ) : (
+                          <div className="prose prose-sm max-w-none text-sm leading-6 text-gray-700">
+                            <ReactMarkdown>{chat.content}</ReactMarkdown>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {isAskingMentor && (
+                <div className="mt-5 rounded-lg border border-gray-200 bg-gray-50 p-4">
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <span>🤖</span>
+                    <span>AI Mentor is thinking...</span>
+                  </div>
+                </div>
+              )}
+
+              {aiChat.length === 0 &&
+                mentorResponse &&
+                !isAskingMentor && (
+                  <div className="mt-5 rounded-lg border border-gray-200 bg-gray-50 p-5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg">🤖</span>
+                      <h4 className="font-semibold text-gray-900">
+                        AI Mentor
+                      </h4>
+                    </div>
+
+                    <div className="mt-3 whitespace-pre-wrap text-sm leading-6 text-gray-700">
+                      {mentorResponse}
+                    </div>
+                  </div>
+                )}
+            </div>
+          )}
+        </div>
+
+        {/* Learning Progress Agent */}
+        <div className="mt-8 rounded-xl bg-gray-900 p-8 text-white">
+          <h3 className="text-2xl font-bold">
+            Learning Progress Agent 🎯
+          </h3>
+
+          <p className="mt-2 max-w-2xl text-gray-300">
+            An action-oriented agent that analyzes your real learning
+            progress, checks roadmap prerequisites, recommends your next
+            step, and can update your progress when you explicitly ask.
+          </p>
+
+          <div className="mt-4 inline-flex items-center rounded-lg border border-gray-700 bg-gray-800 px-4 py-2 text-sm text-gray-300">
+            🎯 Learning Agent:{" "}
+            <span className="ml-1 font-semibold text-white">
+              {agentUsage?.remaining ?? 10}/{agentUsage?.limit ?? 10}
+            </span>
+            <span className="ml-1">queries remaining today</span>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setShowLearningAgent(!showLearningAgent)}
+            className="mt-5 rounded-lg bg-white px-5 py-2.5 text-sm font-medium text-black"
+          >
+            {showLearningAgent
+              ? "Close Learning Agent"
+              : "Ask Learning Agent"}
+          </button>
+
+          {showLearningAgent && (
+            <div className="mt-6 rounded-xl bg-white p-5 text-gray-900">
+              <div>
+                <h4 className="text-lg font-semibold">
+                  Learning Progress Agent
+                </h4>
+
+                <p className="mt-1 text-sm text-gray-500">
+                  Ask what you should learn next, why a module is suitable,
+                  or explicitly request a progress update.
+                </p>
+              </div>
+
+              <div className="mt-4 rounded-lg bg-gray-50 p-4">
+                <p className="text-sm font-medium text-gray-700">
+                  Agent context
+                </p>
+
+                <p className="mt-2 text-sm text-gray-600">
+                  Completed Modules:{" "}
+                  <span className="font-medium text-gray-900">
+                    {student?.completedModules?.length
+                      ? student.completedModules.join(", ")
+                      : "No modules completed yet"}
+                  </span>
+                </p>
+
+                <p className="mt-1 text-sm text-gray-600">
+                  Overall Progress:{" "}
+                  <span className="font-medium text-gray-900">
+                    {progressPercentage}%
+                  </span>
+                </p>
+              </div>
+
+              <div className="mt-4">
+                <label className="mb-2 block text-sm font-medium text-gray-700">
+                  Your Question
+                </label>
+
+                <textarea
+                  value={agentQuestion}
+                  onChange={(e) => setAgentQuestion(e.target.value)}
+                  placeholder="e.g. What should I learn next based on my current progress?"
+                  rows={4}
+                  className="w-full resize-none rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 outline-none focus:border-black focus:ring-1 focus:ring-black"
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={handleAskLearningAgent}
+                disabled={
+                  isAskingAgent ||
+                  agentUsage?.remaining === 0
+                }
+                className="mt-4 rounded-lg bg-black px-5 py-2.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isAskingAgent
+                  ? "Learning Agent is thinking..."
+                  : agentUsage?.remaining === 0
+                    ? "Daily Limit Reached"
+                    : "Ask Learning Agent"}
+              </button>
+
+              {agentUsage?.remaining === 0 && (
+                <p className="mt-3 text-sm font-medium text-red-600">
+                  Learning Progress Agent daily limit reached. Please try again tomorrow.
+                </p>
+              )}
+
+              {agentChat.length > 0 && (
+                <div className="mt-5 max-h-[500px] overflow-y-auto rounded-lg border border-gray-200 bg-gray-50 p-4">
+                  <div className="flex flex-col gap-4">
+                    {agentChat.map((chat, index) => (
+                      <div
+                        key={`agent-${chat.role}-${index}`}
+                        className={
+                          chat.role === "user"
+                            ? "ml-auto max-w-[85%] rounded-xl bg-black px-4 py-3 text-sm leading-6 text-white"
+                            : "mr-auto max-w-[85%] rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm leading-6 text-gray-700"
+                        }
+                      >
+                        <div className="mb-1 text-xs font-semibold opacity-70">
+                          {chat.role === "user"
+                            ? "You"
+                            : "🎯 Learning Agent"}
                         </div>
 
                         {chat.role === "user" ? (
@@ -990,9 +1284,7 @@ export default function Home() {
                                   </ol>
                                 ),
                                 li: ({ children }) => (
-                                  <li className="pl-1">
-                                    {children}
-                                  </li>
+                                  <li className="pl-1">{children}</li>
                                 ),
                                 strong: ({ children }) => (
                                   <strong className="font-bold text-gray-900">
@@ -1016,35 +1308,33 @@ export default function Home() {
                 </div>
               )}
 
-              {/* AI Thinking Indicator */}
-              {isAskingAI && (
+              {isAskingAgent && (
                 <div className="mt-5 rounded-lg border border-gray-200 bg-gray-50 p-4">
                   <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <span>🤖</span>
-                    <span>AI Mentor is thinking...</span>
+                    <span>🎯</span>
+                    <span>Learning Agent is thinking...</span>
                   </div>
                 </div>
               )}
 
-              {/* Fallback response */}
-              {aiChat.length === 0 && aiResponse && !isAskingAI && (
-                <div className="mt-5 rounded-lg border border-gray-200 bg-gray-50 p-5">
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg">🤖</span>
-                    <h4 className="font-semibold text-gray-900">
-                      AI Mentor
-                    </h4>
-                  </div>
+              {agentChat.length === 0 &&
+                agentResponse &&
+                !isAskingAgent && (
+                  <div className="mt-5 rounded-lg border border-gray-200 bg-gray-50 p-5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg">🎯</span>
+                      <h4 className="font-semibold text-gray-900">
+                        Learning Progress Agent
+                      </h4>
+                    </div>
 
-                  <div className="mt-3 whitespace-pre-wrap text-sm leading-6 text-gray-700">
-                    {aiResponse}
+                    <div className="mt-3 whitespace-pre-wrap text-sm leading-6 text-gray-700">
+                      {agentResponse}
+                    </div>
                   </div>
-                </div>
-              )}
-
+                )}
             </div>
           )}
-
         </div>
 
       </section>

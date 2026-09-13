@@ -204,3 +204,24 @@ export async function askGenkitAgent(
 
   return response.json();
 }
+
+// Get today's AI usage
+export async function getAIUsage() {
+  const token = await getAuthToken();
+
+  const response = await fetch(
+    `${API_BASE_URL}/ai/usage`,
+    {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error("Failed to get AI usage");
+  }
+
+  return response.json();
+}

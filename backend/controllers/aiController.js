@@ -1,5 +1,10 @@
 const ai = require("../ai/gemini");
 
+const {
+    consumeAIUsage,
+    refundAIUsage,
+} = require("../utils/aiUsage");
+
 // Primary and fallback Gemini models
 const PRIMARY_MODEL = "gemini-3.6-flash";
 const FALLBACK_MODEL = "gemini-3.5-flash-lite";
@@ -71,6 +76,8 @@ const generateAIResponse = async (prompt) => {
 
 // Ask AI Mentor
 const askAIMentor = async (req, res) => {
+    let usageReserved = false;
+
     try {
         const { message, history = [] } = req.body;
 
@@ -93,6 +100,48 @@ const askAIMentor = async (req, res) => {
                 message: "Student profile not found",
             });
         }
+
+        // Firebase UID comes from the verified authentication middleware.
+        const firebaseUid = req.user?.uid;
+
+        if (!firebaseUid) {
+            return res.status(401).json({
+                success: false,
+                message: "Authenticated student UID not found",
+            });
+        }
+
+        // ========================================================
+        // AI MENTOR DAILY USAGE LIMIT
+        // ========================================================
+
+        const usage = await consumeAIUsage(
+            firebaseUid,
+            "mentor"
+        );
+
+        if (!usage.allowed) {
+            if (usage.reason === "daily_limit_reached") {
+                return res.status(429).json({
+                    success: false,
+                    message:
+                        "Your AI Mentor daily limit of 10 queries has been reached. Please try again tomorrow.",
+                    usage: {
+                        used: usage.used,
+                        limit: usage.limit,
+                        remaining: usage.remaining,
+                    },
+                });
+            }
+
+            return res.status(401).json({
+                success: false,
+                message: "Unable to verify AI Mentor usage.",
+            });
+        }
+
+        // A usage slot has now been reserved.
+        usageReserved = true;
 
         // Keep only the most recent conversation messages.
         // This prevents the prompt from becoming unnecessarily large.
@@ -152,9 +201,35 @@ Instructions:
         res.status(200).json({
             success: true,
             message: responseText,
+            usage: {
+                used: usage.used,
+                limit: usage.limit,
+                remaining: usage.remaining,
+            },
         });
     } catch (error) {
         console.error("AI Mentor error:", error);
+
+        // If Gemini failed after we reserved a slot,
+        // return the slot so temporary failures do not
+        // unfairly consume the student's daily allowance.
+        if (usageReserved) {
+            try {
+                const firebaseUid = req.user?.uid;
+
+                if (firebaseUid) {
+                    await refundAIUsage(
+                        firebaseUid,
+                        "mentor"
+                    );
+                }
+            } catch (refundError) {
+                console.error(
+                    "Failed to refund AI Mentor usage:",
+                    refundError
+                );
+            }
+        }
 
         // Friendly error for temporary Gemini availability issues
         if (error.status === 503) {
