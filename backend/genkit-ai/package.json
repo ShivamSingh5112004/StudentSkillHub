@@ -13,6 +13,8 @@
   "dependencies": {
     "@genkit-ai/express": "^1.42.0",
     "@genkit-ai/google-genai": "^1.42.0",
+    "@genkit-ai/mcp": "^1.42.0",
+    "@genkit-ai/middleware": "^0.10.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",

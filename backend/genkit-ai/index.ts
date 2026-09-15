@@ -2,9 +2,9 @@ import "dotenv/config";
 
 import { genkit, z } from "genkit";
 import { googleAI } from "@genkit-ai/google-genai";
+import { defineMcpClient } from "@genkit-ai/mcp";
 
 import { db } from "../config/firebase.js";
-
 
 // ============================================================
 // LOCAL DEVELOPMENT FALLBACK
@@ -15,7 +15,6 @@ import { db } from "../config/firebase.js";
 // Production will supply the authenticated student's Firebase UID.
 const testFirebaseUid = process.env.ADK_TEST_FIREBASE_UID;
 
-
 // ============================================================
 // GENKIT INITIALIZATION
 // ============================================================
@@ -24,6 +23,41 @@ export const ai = genkit({
   plugins: [googleAI()],
 });
 
+// ============================================================
+// MCP CLIENT
+// ============================================================
+
+// Genkit connects to the StudentSkillHub MCP server through
+// the MCP TypeScript SDK stdio transport.
+//
+// The MCP server exposes the StudentSkillHub learning tools:
+//
+// - getStudentLearningStatus
+// - getLearningRoadmap
+// - getNextRecommendedModule
+// - recordModuleCompletion
+//
+// The existing Genkit tools below are intentionally preserved
+// so the current implementation remains intact while MCP is
+// integrated into the Learning Progress Agent.
+//
+// The MCP client is attached directly to the single Genkit instance.
+// Genkit can therefore resolve the MCP tools by namespace without
+// calling getActiveTools(ai) inside every flow request.
+
+const studentSkillHubMcpClient = defineMcpClient(ai, {
+  name: "studentSkillHubMcpClient",
+  version: "1.0.0",
+
+  mcpServer: {
+    command: "npx",
+    args: ["tsx", "../mcp/server.ts"],
+  },
+
+  // Cache MCP tool discovery so repeated agent requests do not
+  // register the same MCP tools again.
+  cacheTtlMillis: 300000,
+});
 
 // ============================================================
 // TOOL 1: GET STUDENT LEARNING STATUS
@@ -132,7 +166,6 @@ export const getStudentLearningStatus = ai.defineTool(
             : [],
         },
       };
-
     } catch (error) {
       console.error(
         "Genkit Firestore student lookup error:",
@@ -148,7 +181,6 @@ export const getStudentLearningStatus = ai.defineTool(
     }
   }
 );
-
 
 // ============================================================
 // TOOL 2: GET STUDENTSKILLHUB LEARNING ROADMAP
@@ -269,7 +301,6 @@ export const getLearningRoadmap = ai.defineTool(
   }
 );
 
-
 // ============================================================
 // TOOL 3: GET NEXT RECOMMENDED LEARNING MODULE
 // ============================================================
@@ -338,7 +369,9 @@ export const getNextRecommendedModule = ai.defineTool(
 
       const student = snapshot.docs[0].data();
 
-      const completedModules = Array.isArray(student.completedModules)
+      const completedModules = Array.isArray(
+        student.completedModules
+      )
         ? student.completedModules
         : [];
 
@@ -350,6 +383,7 @@ export const getNextRecommendedModule = ai.defineTool(
             "Variables, data types, operators, conditions, loops, functions, arrays, and basic JavaScript programming.",
           prerequisites: [],
         },
+
         {
           module: "Intermediate JavaScript",
           level: "Beginner to Intermediate",
@@ -357,6 +391,7 @@ export const getNextRecommendedModule = ai.defineTool(
             "ES6+, destructuring, spread/rest operators, modules, promises, async/await, error handling, and modern JavaScript patterns.",
           prerequisites: ["JavaScript Basics"],
         },
+
         {
           module: "React Fundamentals",
           level: "Intermediate",
@@ -364,6 +399,7 @@ export const getNextRecommendedModule = ai.defineTool(
             "Components, props, state, hooks, event handling, conditional rendering, and reusable UI development.",
           prerequisites: ["Intermediate JavaScript"],
         },
+
         {
           module: "Node.js & Express",
           level: "Intermediate",
@@ -371,6 +407,7 @@ export const getNextRecommendedModule = ai.defineTool(
             "Backend development with Node.js, Express, REST APIs, middleware, routing, and server-side JavaScript.",
           prerequisites: ["Intermediate JavaScript"],
         },
+
         {
           module: "Database & Firestore",
           level: "Intermediate",
@@ -378,6 +415,7 @@ export const getNextRecommendedModule = ai.defineTool(
             "Database concepts, Firebase, Firestore collections, documents, queries, and CRUD operations.",
           prerequisites: ["Node.js & Express"],
         },
+
         {
           module: "Full-Stack Development",
           level: "Advanced",
@@ -389,12 +427,16 @@ export const getNextRecommendedModule = ai.defineTool(
             "Database & Firestore",
           ],
         },
+
         {
           module: "AI & Generative AI",
           level: "Advanced",
           description:
             "LLMs, Gemini, prompt engineering, AI application development, Genkit, ADK, and AI-powered features.",
-          prerequisites: ["Intermediate JavaScript", "Node.js & Express"],
+          prerequisites: [
+            "Intermediate JavaScript",
+            "Node.js & Express",
+          ],
         },
       ];
 
@@ -437,7 +479,6 @@ export const getNextRecommendedModule = ai.defineTool(
     }
   }
 );
-
 
 // ============================================================
 // TOOL 4: RECORD MODULE COMPLETION
@@ -546,7 +587,6 @@ export const recordModuleCompletion = ai.defineTool(
         message:
           `The module "${moduleName}" has been successfully recorded as completed.`,
       };
-
     } catch (error) {
       console.error(
         "Genkit module completion error:",
@@ -564,7 +604,6 @@ export const recordModuleCompletion = ai.defineTool(
     }
   }
 );
-
 
 // ============================================================
 // STUDENT MENTOR FLOW
@@ -594,7 +633,6 @@ export const studentMentorFlow = ai.defineFlow(
   },
 
   async ({ firebaseUid, question }) => {
-
     // Use authenticated UID when supplied.
     //
     // Local development can fall back to ADK_TEST_FIREBASE_UID.
@@ -606,18 +644,23 @@ export const studentMentorFlow = ai.defineFlow(
       );
     }
 
+    // ==========================================================
+    // GENERATE LEARNING PROGRESS RESPONSE
+    // ==========================================================
 
+    // The MCP client is defined once at Genkit startup.
+    // Genkit resolves the MCP tools through the client namespace
+    // instead of registering them again for every request.
     const response = await ai.generate({
-
       model: googleAI.model("gemini-3.6-flash"),
 
-      tools: [
-        getStudentLearningStatus,
-        getLearningRoadmap,
-        getNextRecommendedModule,
-        recordModuleCompletion,
-      ],
+      // Expose all StudentSkillHub MCP tools through the
+      // defineMcpClient dynamic tool provider.
+      tools: ["studentSkillHubMcpClient:tool/*"],
 
+      // Keep this as a single ai.generate() call.
+      // No retry/fallback middleware is used here because repeated
+      // model generations can cause MCP registration conflicts.
       prompt: `
 You are the StudentSkillHub Learning Progress Agent.
 
@@ -640,10 +683,8 @@ ${uid}
 
 IMPORTANT:
 
-Always use this exact Firebase UID when calling:
-
-- getStudentLearningStatus
-- recordModuleCompletion
+Always use this exact Firebase UID when calling the StudentSkillHub
+MCP tools that require a Firebase UID.
 
 Never replace it with another UID.
 
@@ -652,8 +693,10 @@ Never guess or invent a Firebase UID.
 Never use another student's information.
 
 ============================================================
-AVAILABLE TOOLS
+AVAILABLE MCP TOOLS
 ============================================================
+
+The StudentSkillHub MCP server provides these tools:
 
 1. getStudentLearningStatus
 
@@ -674,7 +717,7 @@ roadmap module whose prerequisites are satisfied.
 Records a completed learning module in Firestore.
 
 ============================================================
-LEARNING QUESTIONS
+MCP TOOL USAGE
 ============================================================
 
 When the student asks about:
@@ -697,16 +740,18 @@ do the following:
    the next module, next step, or a progress-based recommendation.
 
 4. Treat the tool result as the authoritative calculation of
-   prerequisite eligibility. Do not invent a different next
-   module when the tool identifies an eligible one.
+   prerequisite eligibility.
 
-5. Explain which completed modules support the recommendation.
+5. Do not invent a different next module when the tool identifies
+   an eligible one.
 
-6. Mention any important prerequisite dependency when useful.
+6. Explain which completed modules support the recommendation.
 
-7. Give practical next actions for the recommended module.
+7. Mention any important prerequisite dependency when useful.
 
-8. If the student has no profile, do not invent progress.
+8. Give practical next actions for the recommended module.
+
+9. If the student has no profile, do not invent progress.
    Explain that the profile is required.
 
 ============================================================
@@ -794,7 +839,8 @@ STUDENT QUESTION
 
 ${question}
 
-Provide the final answer after using the appropriate tools.
+Provide the final answer after using the appropriate
+StudentSkillHub MCP tools.
 `,
     });
 
