@@ -52,6 +52,11 @@ const studentSkillHubMcpClient = defineMcpClient(ai, {
   mcpServer: {
     command: "npx",
     args: ["tsx", "../mcp/server.ts"],
+     env: {
+    ...process.env,
+    FIREBASE_SERVICE_ACCOUNT:
+      process.env.FIREBASE_SERVICE_ACCOUNT ?? "",
+  },
   },
 
   // Cache MCP tool discovery so repeated agent requests do not
