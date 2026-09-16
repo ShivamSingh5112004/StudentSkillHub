@@ -109,7 +109,57 @@ const askGenkitMentor = async (req, res) => {
         // Read Genkit response
         // ----------------------------------------------------
 
-        const responseData = await response.json();
+        const responseText = await response.text();
+
+        console.log(
+            "Genkit HTTP status:",
+            response.status
+        );
+
+        console.log(
+            "Genkit Content-Type:",
+            response.headers.get("content-type")
+        );
+
+        console.log(
+            "Genkit raw response:",
+            responseText.substring(0, 1000)
+        );
+
+        let responseData;
+
+        try {
+            responseData = JSON.parse(responseText);
+        } catch (parseError) {
+            console.error(
+                "Genkit response was not valid JSON:",
+                parseError
+            );
+
+            // Genkit returned an invalid/non-JSON response,
+            // so return the reserved usage slot.
+            if (usageReserved) {
+                try {
+                    await refundAIUsage(
+                        firebaseUid,
+                        "agent"
+                    );
+                } catch (refundError) {
+                    console.error(
+                        "Failed to refund Learning Progress Agent usage:",
+                        refundError
+                    );
+                }
+
+                usageReserved = false;
+            }
+
+            return res.status(502).json({
+                success: false,
+                message:
+                    "Genkit AI service returned an invalid response.",
+            });
+        }
 
 
         // ----------------------------------------------------
