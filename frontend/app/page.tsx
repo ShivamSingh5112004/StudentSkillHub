@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import { onAuthStateChanged, User } from "firebase/auth";
 
@@ -55,6 +55,9 @@ export default function Home() {
   const [showModules, setShowModules] = useState(false);
 
   // Original AI Mentor states
+  const aiMentorSectionRef = useRef<HTMLDivElement | null>(null);
+  const learningAgentSectionRef = useRef<HTMLDivElement | null>(null);
+
   const [showAIMentor, setShowAIMentor] = useState(false);
   const [mentorQuestion, setMentorQuestion] = useState("");
   const [mentorResponse, setMentorResponse] = useState("");
@@ -112,6 +115,26 @@ export default function Home() {
 
     return () => unsubscribe();
   }, []);
+
+  // Scroll to the AI Mentor section when opened from the header/button.
+  useEffect(() => {
+    if (showAIMentor) {
+      aiMentorSectionRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }
+  }, [showAIMentor]);
+
+  // Scroll to the Learning Progress Agent section when opened from the header/button.
+  useEffect(() => {
+    if (showLearningAgent) {
+      learningAgentSectionRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }
+  }, [showLearningAgent]);
 
   // Fetch the logged-in student's profile using their Firebase UID
   useEffect(() => {
@@ -962,7 +985,10 @@ export default function Home() {
         </div>
 
         {/* Original AI Mentor */}
-        <div className="mt-8 rounded-xl bg-black p-5 text-white sm:p-8">
+        <div
+          ref={aiMentorSectionRef}
+          className="mt-8 scroll-mt-6 rounded-xl bg-black p-5 text-white sm:p-8"
+        >
           <h3 className="text-2xl font-bold leading-tight sm:text-2xl">
             Meet Your AI Mentor 🤖
           </h3>
@@ -1127,7 +1153,10 @@ export default function Home() {
         </div>
 
         {/* Learning Progress Agent */}
-        <div className="mt-8 rounded-xl bg-gray-900 p-5 text-white sm:p-8">
+        <div
+          ref={learningAgentSectionRef}
+          className="mt-8 scroll-mt-6 rounded-xl bg-gray-900 p-5 text-white sm:p-8"
+        >
           <h3 className="text-2xl font-bold leading-tight sm:text-2xl">
             Learning Progress Agent 🎯
           </h3>
