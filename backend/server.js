@@ -20,9 +20,13 @@ const HOST = "0.0.0.0";
 // CORS
 // ============================================================
 
+const corsOrigin =
+    process.env.CORS_ORIGIN ||
+    "http://localhost:3000";
+
 app.use(
     cors({
-        origin: true,
+        origin: corsOrigin,
     })
 );
 
@@ -31,7 +35,11 @@ app.use(
 // PARSE JSON REQUESTS
 // ============================================================
 
-app.use(express.json());
+app.use(
+    express.json({
+        limit: "1mb",
+    })
+);
 
 
 // ============================================================
@@ -49,31 +57,41 @@ app.use(
 // STUDENT APIs
 // ============================================================
 
-app.use("/api/students", studentRoutes);
+app.use(
+    "/api/students",
+    studentRoutes
+);
 
 
 // ============================================================
 // EXISTING AI MENTOR APIs
 // ============================================================
 
-app.use("/api/ai", aiRoutes);
+app.use(
+    "/api/ai",
+    aiRoutes
+);
 
 
 // ============================================================
 // GENKIT AI AGENT APIs
 // ============================================================
 
-app.use("/api/ai", genkitRoutes);
+app.use(
+    "/api/ai",
+    genkitRoutes
+);
 
 
 // ============================================================
 // HEALTH CHECK
 // ============================================================
 
-app.get("/health", (req, res) => {
+app.get("/health", (_req, res) => {
     res.status(200).json({
         success: true,
-        message: "Student Skill Hub API is healthy 🚀",
+        message:
+            "Student Skill Hub API is healthy 🚀",
     });
 });
 
@@ -82,11 +100,49 @@ app.get("/health", (req, res) => {
 // ROOT ROUTE
 // ============================================================
 
-app.get("/", (req, res) => {
+app.get("/", (_req, res) => {
     res.json({
-        message: "Student Skill Hub API is running 🚀",
+        message:
+            "Student Skill Hub API is running 🚀",
     });
 });
+
+
+// ============================================================
+// 404 HANDLER
+// ============================================================
+
+app.use((req, res) => {
+    res.status(404).json({
+        success: false,
+        message: "API route not found",
+    });
+});
+
+
+// ============================================================
+// GLOBAL ERROR HANDLER
+// ============================================================
+
+app.use(
+    (error, _req, res, _next) => {
+        console.error(
+            "Backend server error:",
+            error?.message ||
+                "Unknown server error"
+        );
+
+        if (res.headersSent) {
+            return;
+        }
+
+        res.status(500).json({
+            success: false,
+            message:
+                "Internal server error",
+        });
+    }
+);
 
 
 // ============================================================

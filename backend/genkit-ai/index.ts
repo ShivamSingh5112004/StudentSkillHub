@@ -2,7 +2,12 @@ import "dotenv/config";
 
 import { genkit, z } from "genkit";
 import { googleAI } from "@genkit-ai/google-genai";
+import {
+  openAICompatible,
+  defineCompatOpenAIModel,
+} from "@genkit-ai/compat-oai";
 import { defineMcpClient } from "@genkit-ai/mcp";
+import { fallback } from "@genkit-ai/ai/model/middleware";
 
 import { db } from "../config/firebase.js";
 
@@ -19,9 +24,98 @@ const testFirebaseUid = process.env.ADK_TEST_FIREBASE_UID;
 // GENKIT INITIALIZATION
 // ============================================================
 
+// Provider abstraction:
+// - google     -> Gemini
+// - openrouter -> OpenRouter Free Models Router
+// - groq       -> Groq OpenAI-compatible API
+//
+// Keep Google available so the existing implementation remains intact.
+// OpenRouter/Groq are enabled only when their API keys are configured.
+
+const openRouterPlugin = process.env.OPENROUTER_API_KEY
+  ? openAICompatible({
+      name: "openrouter",
+      apiKey: process.env.OPENROUTER_API_KEY,
+      baseURL: "https://openrouter.ai/api/v1",
+
+      initializer: (client) => {
+        return Promise.resolve([
+          defineCompatOpenAIModel({
+            name: "openrouter/openrouter/free",
+            client,
+            pluginOptions: {
+              name: "openrouter",
+              apiKey: process.env.OPENROUTER_API_KEY,
+              baseURL: "https://openrouter.ai/api/v1",
+            },
+          }),
+        ]);
+      },
+    })
+  : null;
+
 export const ai = genkit({
-  plugins: [googleAI()],
+  plugins: [
+    googleAI(),
+
+    ...(openRouterPlugin ? [openRouterPlugin] : []),
+
+    ...(process.env.GROQ_API_KEY
+      ? [
+          openAICompatible({
+            name: "groq",
+            apiKey: process.env.GROQ_API_KEY,
+            baseURL: "https://api.groq.com/openai/v1",
+          }),
+        ]
+      : []),
+  ],
 });
+
+// ============================================================
+// AUTOMATIC AI PROVIDER FAILOVER
+// ============================================================
+
+// Gemini remains the PRIMARY model.
+//
+// If Gemini fails with a provider/transient error such as:
+// - 503 / UNAVAILABLE
+// - 429 / RESOURCE_EXHAUSTED
+// - timeout / DEADLINE_EXCEEDED
+//
+// Genkit's official fallback middleware switches to OpenRouter,
+// and then to Groq, without starting a second top-level
+// ai.generate() call.
+//
+// This is important for MCP stability:
+// the same Genkit instance, the same MCP client, and the same
+// MCP tool namespace are reused throughout the generation.
+//
+// The fallback happens at the model layer inside one generation.
+//
+// Provider order:
+//   1. Gemini
+//   2. OpenRouter (only when OPENROUTER_API_KEY exists)
+//   3. Groq (only when GROQ_API_KEY exists)
+
+const learningAgentModel =
+  googleAI.model("gemini-3.6-flash");
+
+// IMPORTANT:
+// The OpenAI-compatible plugin registers models using the provider
+// name as the modelRef namespace. The fallback middleware therefore
+// receives standard Genkit model references such as
+// openrouter/openrouter/free and groq/openai/gpt-oss-20b.
+
+const providerFallbackModels = [
+  ...(process.env.OPENROUTER_API_KEY
+    ? ["openrouter/openrouter/free"]
+    : []),
+
+  ...(process.env.GROQ_API_KEY
+    ? ["groq/openai/gpt-oss-20b"]
+    : []),
+];
 
 // ============================================================
 // MCP CLIENT
@@ -52,11 +146,11 @@ const studentSkillHubMcpClient = defineMcpClient(ai, {
   mcpServer: {
     command: "npx",
     args: ["tsx", "../mcp/server.ts"],
-     env: {
-    ...process.env,
-    FIREBASE_SERVICE_ACCOUNT:
-      process.env.FIREBASE_SERVICE_ACCOUNT ?? "",
-  },
+    env: {
+      ...process.env,
+      FIREBASE_SERVICE_ACCOUNT:
+        process.env.FIREBASE_SERVICE_ACCOUNT ?? "",
+    },
   },
 
   // Cache MCP tool discovery so repeated agent requests do not
@@ -656,16 +750,51 @@ export const studentMentorFlow = ai.defineFlow(
     // The MCP client is defined once at Genkit startup.
     // Genkit resolves the MCP tools through the client namespace
     // instead of registering them again for every request.
+
     const response = await ai.generate({
-      model: googleAI.model("gemini-3.6-flash"),
+      model: learningAgentModel,
 
       // Expose all StudentSkillHub MCP tools through the
       // defineMcpClient dynamic tool provider.
       tools: ["studentSkillHubMcpClient:tool/*"],
 
-      // Keep this as a single ai.generate() call.
-      // No retry/fallback middleware is used here because repeated
-      // model generations can cause MCP registration conflicts.
+      // Keep this as a SINGLE top-level ai.generate() call.
+      //
+      // The fallback middleware changes the model at the model layer
+      // when the current provider returns a matching transient error.
+      //
+      // It does NOT call ai.generate() again and does NOT recreate
+      // the MCP client.
+      //
+      // Provider sequence:
+      //
+      // Gemini
+      //    ↓
+      // OpenRouter
+      //    ↓
+      // Groq
+      //
+      // This preserves the MCP architecture and avoids the duplicate
+      // MCP tool-registration problem caused by manual retries.
+
+      ...(providerFallbackModels.length > 0
+        ? {
+            use: [
+              fallback(ai, {
+                models: providerFallbackModels,
+                statuses: [
+                  "UNAVAILABLE",
+                  "DEADLINE_EXCEEDED",
+                  "RESOURCE_EXHAUSTED",
+                  "ABORTED",
+                  "INTERNAL",
+                  "UNKNOWN",
+                ],
+              }),
+            ],
+          }
+        : {}),
+
       prompt: `
 You are the StudentSkillHub Learning Progress Agent.
 

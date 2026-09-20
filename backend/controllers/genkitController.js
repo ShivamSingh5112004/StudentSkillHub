@@ -15,6 +15,7 @@ const {
 
 const askGenkitMentor = async (req, res) => {
     let usageReserved = false;
+    let reservedUsageDate = null;
 
     try {
         const { message } = req.body;
@@ -81,28 +82,47 @@ const askGenkitMentor = async (req, res) => {
         // A usage slot has now been reserved.
         usageReserved = true;
 
+        // Store the exact date on which the reservation was made.
+        // This ensures a later refund targets the same usage
+        // document even if the request crosses midnight.
+        reservedUsageDate = usage.usageDate;
+
 
         // ----------------------------------------------------
         // Call Genkit service
         // ----------------------------------------------------
 
-        const response = await fetch(
-            `${GENKIT_SERVICE_URL}/studentMentorFlow`,
-            {
-                method: "POST",
+        const controller = new AbortController();
 
-                headers: {
-                    "Content-Type": "application/json",
-                },
+        const timeout = setTimeout(() => {
+            controller.abort();
+        }, 30000);
 
-                body: JSON.stringify({
-                    data: {
-                        firebaseUid,
-                        question: message.trim(),
+        let response;
+
+        try {
+            response = await fetch(
+                `${GENKIT_SERVICE_URL}/studentMentorFlow`,
+                {
+                    method: "POST",
+
+                    headers: {
+                        "Content-Type": "application/json",
                     },
-                }),
-            }
-        );
+
+                    body: JSON.stringify({
+                        data: {
+                            firebaseUid,
+                            question: message.trim(),
+                        },
+                    }),
+
+                    signal: controller.signal,
+                }
+            );
+        } finally {
+            clearTimeout(timeout);
+        }
 
 
         // ----------------------------------------------------
@@ -142,7 +162,8 @@ const askGenkitMentor = async (req, res) => {
                 try {
                     await refundAIUsage(
                         firebaseUid,
-                        "agent"
+                        "agent",
+                        reservedUsageDate
                     );
                 } catch (refundError) {
                     console.error(
@@ -152,6 +173,7 @@ const askGenkitMentor = async (req, res) => {
                 }
 
                 usageReserved = false;
+                reservedUsageDate = null;
             }
 
             return res.status(502).json({
@@ -178,7 +200,8 @@ const askGenkitMentor = async (req, res) => {
                 try {
                     await refundAIUsage(
                         firebaseUid,
-                        "agent"
+                        "agent",
+                        reservedUsageDate
                     );
                 } catch (refundError) {
                     console.error(
@@ -188,6 +211,7 @@ const askGenkitMentor = async (req, res) => {
                 }
 
                 usageReserved = false;
+                reservedUsageDate = null;
             }
 
             return res.status(
@@ -228,6 +252,42 @@ const askGenkitMentor = async (req, res) => {
             error
         );
 
+        // ----------------------------------------------------
+        // Handle Genkit request timeout
+        // ----------------------------------------------------
+
+        if (error?.name === "AbortError") {
+            if (usageReserved) {
+                try {
+                    const firebaseUid = req.user?.uid;
+
+                    if (firebaseUid) {
+                        await refundAIUsage(
+                            firebaseUid,
+                            "agent",
+                            reservedUsageDate
+                        );
+                    }
+                } catch (refundError) {
+                    console.error(
+                        "Failed to refund Learning Progress Agent usage:",
+                        refundError
+                    );
+                }
+            }
+
+            return res.status(504).json({
+                success: false,
+                message:
+                    "The Learning Progress Agent took too long to respond. Please try again.",
+            });
+        }
+
+
+        // ----------------------------------------------------
+        // Handle other Genkit connection errors
+        // ----------------------------------------------------
+
         // If the Genkit request failed after reserving a slot,
         // return the slot to the student.
         if (usageReserved) {
@@ -237,7 +297,8 @@ const askGenkitMentor = async (req, res) => {
                 if (firebaseUid) {
                     await refundAIUsage(
                         firebaseUid,
-                        "agent"
+                        "agent",
+                        reservedUsageDate
                     );
                 }
             } catch (refundError) {

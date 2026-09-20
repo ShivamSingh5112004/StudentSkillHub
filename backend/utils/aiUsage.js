@@ -7,6 +7,11 @@ const FEATURE_FIELDS = {
     agent: "agentCount",
 };
 
+
+// ============================================================
+// GET USAGE DATE
+// ============================================================
+
 const getUsageDate = () => {
     const configuredTimeZone =
         process.env.AI_USAGE_TIMEZONE || "Asia/Kolkata";
@@ -19,15 +24,29 @@ const getUsageDate = () => {
     }).format(new Date());
 };
 
-const getUsageRef = (firebaseUid) => {
-    const usageDate = getUsageDate();
 
+// ============================================================
+// GET USAGE DOCUMENT REFERENCE
+// ============================================================
+
+const getUsageRef = (
+    firebaseUid,
+    usageDate = getUsageDate()
+) => {
     return db
         .collection("aiUsage")
         .doc(`${firebaseUid}_${usageDate}`);
 };
 
-const consumeAIUsage = async (firebaseUid, feature) => {
+
+// ============================================================
+// CONSUME AI USAGE
+// ============================================================
+
+const consumeAIUsage = async (
+    firebaseUid,
+    feature
+) => {
     if (!firebaseUid) {
         return {
             allowed: false,
@@ -46,16 +65,26 @@ const consumeAIUsage = async (firebaseUid, feature) => {
         );
     }
 
-    const usageRef = getUsageRef(firebaseUid);
+    // Capture the usage date once for the entire reservation.
+    const usageDate = getUsageDate();
+
+    const usageRef = getUsageRef(
+        firebaseUid,
+        usageDate
+    );
 
     return db.runTransaction(async (transaction) => {
-        const usageDoc = await transaction.get(usageRef);
+        const usageDoc = await transaction.get(
+            usageRef
+        );
 
         const currentData = usageDoc.exists
             ? usageDoc.data()
             : {};
 
-        const used = Number(currentData[field] || 0);
+        const used = Number(
+            currentData[field] || 0
+        );
 
         if (used >= DAILY_AI_LIMIT) {
             return {
@@ -64,6 +93,7 @@ const consumeAIUsage = async (firebaseUid, feature) => {
                 limit: DAILY_AI_LIMIT,
                 used,
                 remaining: 0,
+                usageDate,
             };
         }
 
@@ -73,11 +103,13 @@ const consumeAIUsage = async (firebaseUid, feature) => {
             usageRef,
             {
                 firebaseUid,
-                date: getUsageDate(),
+                date: usageDate,
                 [field]: newUsed,
                 updatedAt: new Date().toISOString(),
             },
-            { merge: true }
+            {
+                merge: true,
+            }
         );
 
         return {
@@ -85,12 +117,23 @@ const consumeAIUsage = async (firebaseUid, feature) => {
             reason: "allowed",
             limit: DAILY_AI_LIMIT,
             used: newUsed,
-            remaining: DAILY_AI_LIMIT - newUsed,
+            remaining:
+                DAILY_AI_LIMIT - newUsed,
+            usageDate,
         };
     });
 };
 
-const refundAIUsage = async (firebaseUid, feature) => {
+
+// ============================================================
+// REFUND AI USAGE
+// ============================================================
+
+const refundAIUsage = async (
+    firebaseUid,
+    feature,
+    usageDate = getUsageDate()
+) => {
     if (!firebaseUid) {
         return;
     }
@@ -103,24 +146,44 @@ const refundAIUsage = async (firebaseUid, feature) => {
         );
     }
 
-    const usageRef = getUsageRef(firebaseUid);
+    const usageRef = getUsageRef(
+        firebaseUid,
+        usageDate
+    );
 
     await db.runTransaction(async (transaction) => {
-        const usageDoc = await transaction.get(usageRef);
+        const usageDoc = await transaction.get(
+            usageRef
+        );
 
         if (!usageDoc.exists) {
             return;
         }
 
         const currentData = usageDoc.data();
-        const used = Number(currentData[field] || 0);
 
-        transaction.update(usageRef, {
-            [field]: Math.max(used - 1, 0),
-            updatedAt: new Date().toISOString(),
-        });
+        const used = Number(
+            currentData[field] || 0
+        );
+
+        transaction.update(
+            usageRef,
+            {
+                [field]: Math.max(
+                    used - 1,
+                    0
+                ),
+                updatedAt:
+                    new Date().toISOString(),
+            }
+        );
     });
 };
+
+
+// ============================================================
+// GET AI USAGE
+// ============================================================
 
 const getAIUsage = async (firebaseUid) => {
     if (!firebaseUid) {
@@ -130,6 +193,7 @@ const getAIUsage = async (firebaseUid) => {
                 limit: DAILY_AI_LIMIT,
                 remaining: DAILY_AI_LIMIT,
             },
+
             agent: {
                 used: 0,
                 limit: DAILY_AI_LIMIT,
@@ -138,22 +202,34 @@ const getAIUsage = async (firebaseUid) => {
         };
     }
 
-    const usageRef = getUsageRef(firebaseUid);
+    const usageDate = getUsageDate();
+
+    const usageRef = getUsageRef(
+        firebaseUid,
+        usageDate
+    );
+
     const usageDoc = await usageRef.get();
 
     const data = usageDoc.exists
         ? usageDoc.data()
         : {};
 
-    const mentorUsed = Number(data.mentorCount || 0);
-    const agentUsed = Number(data.agentCount || 0);
+    const mentorUsed = Number(
+        data.mentorCount || 0
+    );
+
+    const agentUsed = Number(
+        data.agentCount || 0
+    );
 
     return {
         mentor: {
             used: mentorUsed,
             limit: DAILY_AI_LIMIT,
             remaining: Math.max(
-                DAILY_AI_LIMIT - mentorUsed,
+                DAILY_AI_LIMIT -
+                    mentorUsed,
                 0
             ),
         },
@@ -162,12 +238,18 @@ const getAIUsage = async (firebaseUid) => {
             used: agentUsed,
             limit: DAILY_AI_LIMIT,
             remaining: Math.max(
-                DAILY_AI_LIMIT - agentUsed,
+                DAILY_AI_LIMIT -
+                    agentUsed,
                 0
             ),
         },
     };
 };
+
+
+// ============================================================
+// EXPORTS
+// ============================================================
 
 module.exports = {
     DAILY_AI_LIMIT,
